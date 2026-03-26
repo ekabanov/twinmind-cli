@@ -49,7 +49,8 @@ All endpoints use **POST** method with JSON body. Base URL: `https://api.thirdea
 
 Lists all memories (meetings).
 
-- **Request**: `{}` (empty JSON body)
+- **Request**: `{"limit": 100, "offset": 0}` (default limit is 20, max is 100)
+- **Pagination**: use `limit` + `offset` to page through all results
 - **Response**:
 ```json
 {

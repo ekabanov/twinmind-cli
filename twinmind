@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Wrapper script — runs twinmind CLI via uv from the project directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec uv run --directory "$SCRIPT_DIR" twinmind "$@"
