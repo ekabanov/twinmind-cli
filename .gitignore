@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Export data
+twinmind-export/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
