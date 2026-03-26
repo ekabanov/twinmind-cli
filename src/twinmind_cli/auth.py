@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -14,11 +15,9 @@ logger = logging.getLogger(__name__)
 FIREBASE_API_KEY = "AIzaSyD2Sd_NP3vA4rwvoroKqDefpXZeCMDXcIQ"
 FIREBASE_TENANT_ID = "PRODTwinMind-dcnoy"
 TOKEN_REFRESH_URL = f"https://securetoken.googleapis.com/v1/token?key={FIREBASE_API_KEY}"
-AUTH_FILE = Path.home() / ".twinmind-crawler" / "auth.json"
+AUTH_FILE = Path.home() / ".twinmind-cli" / "auth.json"
+ENV_VAR_NAME = "TWINMIND_REFRESH_TOKEN"
 
-# JS snippet that extracts the Firebase refresh token from the browser.
-# Searches both localStorage and IndexedDB, then copies to clipboard.
-# Stored in extract-token.js and also embedded here for the CLI instructions.
 EXTRACT_SNIPPET_FILE = Path(__file__).parent.parent.parent / "extract-token.js"
 
 
@@ -66,14 +65,25 @@ def refresh_id_token(refresh_token: str) -> tuple[str, str]:
 
 
 def get_id_token() -> str:
-    """Get a valid Firebase ID token, refreshing if needed.
+    """Get a valid Firebase ID token.
 
-    Raises RuntimeError if no tokens are available (need to run auth flow).
+    Priority: TWINMIND_REFRESH_TOKEN env var > auth.json file.
+    Auto-refreshes expired tokens.
+
+    Raises RuntimeError if no tokens are available.
     """
+    # 1. Check environment variable
+    env_token = os.environ.get(ENV_VAR_NAME)
+    if env_token:
+        logger.info("Using refresh token from %s env var", ENV_VAR_NAME)
+        id_token, _ = refresh_id_token(env_token.strip())
+        return id_token
+
+    # 2. Check auth file
     tokens = _load_tokens()
     if tokens is None:
         raise RuntimeError(
-            "No auth tokens found. Run 'twinmind-crawler auth' to sign in."
+            "No auth tokens found. Run 'twinmind auth' or set TWINMIND_REFRESH_TOKEN."
         )
 
     # Refresh if token expires within 5 minutes
@@ -84,7 +94,7 @@ def get_id_token() -> str:
             return id_token
         except requests.HTTPError as e:
             raise RuntimeError(
-                f"Token refresh failed ({e}). Run 'twinmind-crawler auth' to re-authenticate."
+                f"Token refresh failed ({e}). Run 'twinmind auth' to re-authenticate."
             ) from e
 
     return tokens["id_token"]
@@ -92,9 +102,6 @@ def get_id_token() -> str:
 
 def browser_auth() -> str:
     """Guide the user to extract their Firebase refresh token from the browser.
-
-    The user pastes a JS snippet in the console which copies the token
-    to clipboard, then pastes it back in the terminal.
 
     Returns the ID token.
     """
@@ -135,21 +142,19 @@ def browser_auth() -> str:
         raise RuntimeError("No token provided.")
 
     # Clean up common copy artifacts from browser console
-    # Remove leading/trailing quotes
     if (refresh_token.startswith('"') and refresh_token.endswith('"')) or \
        (refresh_token.startswith("'") and refresh_token.endswith("'")):
         refresh_token = refresh_token[1:-1]
-    # Remove any ">" prompt prefix from console copy
     refresh_token = refresh_token.lstrip("> ").strip()
 
     # Exchange refresh token for id_token
     print("\nExchanging token...")
     try:
-        id_token, new_refresh = refresh_id_token(refresh_token)
+        id_token, _ = refresh_id_token(refresh_token)
     except requests.HTTPError as e:
         raise RuntimeError(f"Token exchange failed: {e}") from e
 
-    # Verify the token works by making a test API call
+    # Verify the token works
     print("Verifying token...")
     try:
         resp = requests.post(
@@ -170,14 +175,5 @@ def browser_auth() -> str:
                 "Token verification failed - the token may be invalid. "
                 "Make sure you're signed in and try again."
             ) from e
-        # Non-auth error, token might still be fine
         print("\nAuthentication saved (could not verify - API may be temporarily unavailable).")
         return id_token
-
-
-def ensure_authenticated() -> str:
-    """Ensure we have a valid token, prompting for auth if needed."""
-    try:
-        return get_id_token()
-    except RuntimeError:
-        return browser_auth()

@@ -12,9 +12,9 @@ from .models import Memory, MemoryTitle
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.thirdear.live"
-REQUEST_DELAY = 0.5  # seconds between requests
+REQUEST_DELAY = 0.5
 MAX_RETRIES = 3
-BACKOFF_BASE = 2  # exponential backoff base
+BACKOFF_BASE = 2
 
 
 class TwinmindAPI:
@@ -28,6 +28,7 @@ class TwinmindAPI:
         return self._token
 
     def _refresh_token(self) -> str:
+        self._token = None
         self._token = auth.get_id_token()
         return self._token
 
@@ -46,24 +47,16 @@ class TwinmindAPI:
         for attempt in range(MAX_RETRIES):
             try:
                 resp = self._session.request(
-                    method,
-                    url,
-                    headers=self._headers(),
-                    params=params,
-                    timeout=60,
-                    **kwargs,
+                    method, url, headers=self._headers(),
+                    params=params, timeout=60, **kwargs,
                 )
 
                 if resp.status_code == 401:
                     logger.info("Got 401, refreshing token...")
                     self._refresh_token()
                     resp = self._session.request(
-                        method,
-                        url,
-                        headers=self._headers(),
-                        params=params,
-                        timeout=60,
-                        **kwargs,
+                        method, url, headers=self._headers(),
+                        params=params, timeout=60, **kwargs,
                     )
 
                 if resp.status_code == 429:
@@ -95,25 +88,14 @@ class TwinmindAPI:
     def get_memory_titles(self) -> list[MemoryTitle]:
         """Fetch all memory titles via POST."""
         data = self._request("POST", "/api/v1/get_memory_titles", json={})
-
-        items = []
-        if isinstance(data, list):
-            items = data
-        elif isinstance(data, dict):
-            items = data.get("memories", [])
-
+        items = data.get("memories", []) if isinstance(data, dict) else data if isinstance(data, list) else []
         titles = [MemoryTitle.from_api(item) for item in items]
         logger.info("Fetched %d memory titles", len(titles))
         return titles
 
     def get_memory(self, meeting_id: str) -> Memory:
         """Fetch full memory details including transcript and summary."""
-        data = self._request(
-            "POST",
-            "/api/v1/get_memory",
-            json={"meeting_id": meeting_id},
-        )
-        # Response shape: {"memories": [{"summary": {actual memory data}}]}
+        data = self._request("POST", "/api/v1/get_memory", json={"meeting_id": meeting_id})
         if isinstance(data, dict) and "memories" in data:
             memories = data["memories"]
             if memories:
@@ -125,11 +107,7 @@ class TwinmindAPI:
     def get_summary_view(self, meeting_id: str) -> dict:
         """Fetch the V2 summary view for richer summary data."""
         try:
-            return self._request(
-                "POST",
-                "/api/v2/summary/view",
-                json={"meeting_id": meeting_id},
-            )
+            return self._request("POST", "/api/v2/summary/view", json={"meeting_id": meeting_id})
         except Exception as e:
             logger.warning("Failed to fetch V2 summary for %s: %s", meeting_id, e)
             return {}
@@ -137,11 +115,7 @@ class TwinmindAPI:
     def get_audio_url(self, meeting_id: str) -> str | None:
         """Get a signed URL for downloading the audio file."""
         try:
-            data = self._request(
-                "POST",
-                "/api/v2/transcriber-proxy/get-audio-url",
-                json={"meeting_id": meeting_id},
-            )
+            data = self._request("POST", "/api/v2/transcriber-proxy/get-audio-url", json={"meeting_id": meeting_id})
             if isinstance(data, dict):
                 return data.get("url") or data.get("audio_url") or data.get("signed_url")
             return None

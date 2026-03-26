@@ -34,15 +34,22 @@ class MemoryTitle:
             metadata=meta,
         )
 
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "time_created": self.time_created,
+            "date_modified": self.date_modified,
+            "duration_seconds": self.duration_seconds,
+            "has_audio": self.has_audio,
+        }
+
 
 @dataclass
 class Memory:
-    """Full memory from get_memory endpoint.
-
-    The API nests the memory data under memories[0].summary with keys:
-    meeting_title, summary (markdown), transcript (plain text),
-    action (action items), attendees, start_time, end_time, etc.
-    """
+    """Full memory from get_memory endpoint."""
 
     id: str
     title: str
@@ -78,3 +85,19 @@ class Memory:
             is_audio_transcribe=data.get("is_audio_transcribe", False),
             raw_response=data,
         )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "summary": self.summary,
+            "transcript": self.transcript,
+            "action_items": self.action_items,
+            "attendees": self.attendees,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "time_created": self.time_created,
+            "date_modified": self.date_modified,
+            "duration_seconds": self.duration_seconds,
+            "has_audio": self.has_audio,
+        }
